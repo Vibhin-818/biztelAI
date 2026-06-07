@@ -9,8 +9,7 @@ class Settings(BaseSettings):
     hf_vision_model: str = "Qwen/Qwen2.5-VL-72B-Instruct"
     database_url: str = "sqlite:///records.db"
     upload_dir: str = "uploads"
-    cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
-
+    cors_origins: str = "https://biztelai23.vercel.app,http://localhost:5173,http://127.0.0.1:5173"
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     @property
