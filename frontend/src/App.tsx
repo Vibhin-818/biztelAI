@@ -87,11 +87,12 @@ function UploadPanel({ upload }: { upload: UseMutationResult<DocumentUpload, Err
           className="hidden"
           type="file"
           accept="image/*,.pdf,.txt"
+          multiple
           onChange={(event) => {
-            const file = event.target.files?.[0];
-            if (!file) return;
-            setPreview(URL.createObjectURL(file));
-            upload.mutate(file);
+            const files = event.target.files;
+            if (!files || files.length === 0) return;
+            setPreview(URL.createObjectURL(files[0]));
+            Array.from(files).forEach(file => upload.mutate(file));
           }}
         />
       </label>
@@ -141,9 +142,10 @@ function HistoryPanel({ documents, selected, setSelected, isLoading }: { documen
                 <p className="truncate text-sm font-medium">{doc.filename}</p>
                 <p className="text-xs text-muted-foreground">{new Date(doc.created_at).toLocaleString()}</p>
               </div>
-              <Badge tone={doc.record?.review_status === "approved" ? "success" : "warning"}>{doc.record?.review_status ?? "queued"}</Badge>
+              <Badge tone={doc.records[0]?.review_status === "approved" ? "success" : "warning"}>{doc.records[0]?.review_status ?? "queued"}</Badge>
             </div>
-            <p className="mt-2 truncate text-xs text-muted-foreground">{doc.record?.work_order_number ?? "No work order detected"}</p>
+            <p className="mt-2 truncate text-xs text-muted-foreground">{doc.records[0]?.work_order_number ?? "No work order detected"}</p>
+            {doc.records.length > 1 && <p className="mt-1 text-xs text-muted-foreground">{doc.records.length} rows extracted</p>}
           </button>
         ))}
         {!isLoading && documents.length === 0 && <p className="text-sm text-muted-foreground">No documents yet.</p>}
@@ -209,12 +211,21 @@ function MiniChart({ title, data }: { title: string; data: Record<string, number
 function ReviewPanel({ document, onSaved }: { document: DocumentUpload | null; onSaved: () => void }) {
   const [draft, setDraft] = useState<OperationalRecord | null>(null);
   const [notes, setNotes] = useState("");
+  const [selectedRecordIndex, setSelectedRecordIndex] = useState(0);
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    setDraft(document?.record ?? null);
-    setNotes(document?.record?.reviewer_notes ?? "");
+    setSelectedRecordIndex(0);
+    setDraft(document?.records[0] ?? null);
+    setNotes(document?.records[0]?.reviewer_notes ?? "");
   }, [document?.id]);
+
+  useEffect(() => {
+    if (document && document.records[selectedRecordIndex]) {
+      setDraft(document.records[selectedRecordIndex]);
+      setNotes(document.records[selectedRecordIndex].reviewer_notes ?? "");
+    }
+  }, [selectedRecordIndex, document]);
 
   const save = useMutation({
     mutationFn: () => {
@@ -253,6 +264,24 @@ function ReviewPanel({ document, onSaved }: { document: DocumentUpload | null; o
           <Badge tone={draft.overall_confidence >= 0.78 ? "success" : "warning"}>{Math.round(draft.overall_confidence * 100)}% confidence</Badge>
         </div>
       </div>
+
+      {document.records.length > 1 && (
+        <div className="mb-4 flex gap-2 overflow-x-auto pb-2">
+          {document.records.map((record, index) => (
+            <button
+              key={record.id}
+              onClick={() => setSelectedRecordIndex(index)}
+              className={`px-3 py-1 text-sm rounded-md border whitespace-nowrap ${
+                selectedRecordIndex === index
+                  ? "border-primary bg-teal-50 text-primary font-medium"
+                  : "border-border bg-white text-muted-foreground hover:bg-muted/40"
+              }`}
+            >
+              Row {index + 1}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="grid gap-5 xl:grid-cols-[1fr_360px]">
         <div>

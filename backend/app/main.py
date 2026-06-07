@@ -80,16 +80,47 @@ async def upload_document(file: UploadFile = File(...), db: Session = Depends(ge
     db.add(document)
     db.flush()
 
-    record = OperationalRecord(
-        document_id=document.id,
-        raw_json=structured,
-        field_confidence=confidence,
-        overall_confidence=overall,
-        validation_errors=validations,
-        review_status=review_status,
-        **record_fields,
-    )
-    db.add(record)
+    rows = structured.get("rows", []) if isinstance(structured.get("rows"), list) else []
+    if rows:
+        for row_data in rows:
+            if not isinstance(row_data, dict):
+                continue
+            row_fields = {
+                "date": row_data.get("date"),
+                "shift": row_data.get("shift"),
+                "employee_number": row_data.get("employee_number"),
+                "operation_code": row_data.get("operation_code"),
+                "machine_number": row_data.get("machine_number"),
+                "work_order_number": row_data.get("work_order_number"),
+                "quantity_produced": row_data.get("quantity_produced"),
+                "time_taken_minutes": row_data.get("time_taken_minutes"),
+            }
+            row_confidence, row_overall = score_confidence(row_fields, extracted_text, row_data)
+            row_validations = validate_record(row_fields, row_confidence, db)
+            row_review_status = "approved" if not row_validations and row_overall >= 0.78 else "needs_review"
+
+            record = OperationalRecord(
+                document_id=document.id,
+                raw_json=row_data,
+                field_confidence=row_confidence,
+                overall_confidence=row_overall,
+                validation_errors=row_validations,
+                review_status=row_review_status,
+                **row_fields,
+            )
+            db.add(record)
+    else:
+        record = OperationalRecord(
+            document_id=document.id,
+            raw_json=structured,
+            field_confidence=confidence,
+            overall_confidence=overall,
+            validation_errors=validations,
+            review_status=review_status,
+            **record_fields,
+        )
+        db.add(record)
+
     db.commit()
     db.refresh(document)
     return UploadResponse(document=document)
@@ -97,7 +128,7 @@ async def upload_document(file: UploadFile = File(...), db: Session = Depends(ge
 
 @app.get("/documents", response_model=list[DocumentOut])
 def list_documents(q: str | None = None, status: str | None = None, db: Session = Depends(get_db)) -> list[DocumentUpload]:
-    query = db.query(DocumentUpload).options(joinedload(DocumentUpload.record)).join(OperationalRecord)
+    query = db.query(DocumentUpload).options(joinedload(DocumentUpload.records)).join(OperationalRecord)
     if q:
         like = f"%{q}%"
         query = query.filter(
@@ -116,7 +147,7 @@ def list_documents(q: str | None = None, status: str | None = None, db: Session 
 
 @app.get("/documents/{document_id}", response_model=DocumentOut)
 def get_document(document_id: int, db: Session = Depends(get_db)) -> DocumentUpload:
-    document = db.query(DocumentUpload).options(joinedload(DocumentUpload.record)).filter(DocumentUpload.id == document_id).first()
+    document = db.query(DocumentUpload).options(joinedload(DocumentUpload.records)).filter(DocumentUpload.id == document_id).first()
     if not document:
         raise HTTPException(status_code=404, detail="Document not found")
     return document

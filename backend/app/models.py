@@ -17,7 +17,7 @@ class DocumentUpload(Base):
     extracted_text: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
-    record: Mapped["OperationalRecord"] = relationship(back_populates="document", uselist=False)
+    records: Mapped[list["OperationalRecord"]] = relationship(back_populates="document")
 
 
 class OperationalRecord(Base):
@@ -41,4 +41,4 @@ class OperationalRecord(Base):
     reviewer_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    document: Mapped[DocumentUpload] = relationship(back_populates="record")
+    document: Mapped[DocumentUpload] = relationship(back_populates="records")

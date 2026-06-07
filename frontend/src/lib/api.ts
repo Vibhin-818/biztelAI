@@ -36,7 +36,7 @@ export type DocumentUpload = {
   status: string;
   extracted_text: string;
   created_at: string;
-  record: OperationalRecord | null;
+  records: OperationalRecord[];
 };
 
 export type Analytics = {

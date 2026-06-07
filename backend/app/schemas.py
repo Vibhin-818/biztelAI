@@ -41,7 +41,7 @@ class DocumentOut(BaseModel):
     status: str
     extracted_text: str
     created_at: datetime
-    record: OperationalRecordOut | None = None
+    records: list[OperationalRecordOut] = []
 
     model_config = {"from_attributes": True}
 
